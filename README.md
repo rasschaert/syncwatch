@@ -5,6 +5,8 @@ Syncwatch uses the awesome cross-platform [fswatch](https://github.com/emcrisost
 
 Many other (editor built-in) alternatives use language libraries for SCP or SFTP which often ignore your SSH configuration. This script simply shells out to regular rsync, so you get the advantage of your ~/.ssh/config being used.
 
+Rsync is called with the --delete option in order to clean up obscolete files. Doublecheck your paths so you don't accidentally delete something on your remote host!
+
 ## Installation
 Just make the script executable and put it a folder in your $PATH.
 
@@ -37,3 +39,6 @@ Starting new watch [1] on /home/kenny/development/bar/webserver-config/
 ```
 
 Kill with ^C when you're done.
+
+## License
+MIT
