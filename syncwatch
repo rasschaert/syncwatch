@@ -1,0 +1,53 @@
+#!/usr/bin/env ruby
+# require 'optparse'
+require 'json'
+# TODO: add a parameter to configure this
+configfile = 'syncwatch.json'
+
+# This script runs forever unless killed, so handle ^C nicely
+trap('INT') {
+  puts ''
+  puts 'Syncwatch shutting down.'
+  exit
+}
+
+# Open and parse the JSON config file
+def read_config(configfile)
+  begin
+    file = File.read(configfile)
+    parsed_config = JSON.parse(file)
+  rescue => error
+    abort("ERROR: Error parsing configuration file #{configfile}. Does it exist and is it valid JSON?")
+  end
+  return parsed_config
+end
+
+# Start a watch thread
+def start_watch(sourcedir, remotedir, remotehost, index)
+  puts "Starting new watch [#{index}] on #{sourcedir}"
+  # fswatch options
+  # -1 to make it exit after one iteration, this seems to be most reliable way to avoid it triggering multiple syncs per event
+  # -r to watch recursively
+  # -L to follow symlinks
+  # --event because only these three events actually change anything
+  watch_cmd = "fswatch -1 -rL --event Updated --event Removed --event Created \"#{sourcedir}\""
+  loop do
+    `#{watch_cmd}`
+    puts "  [#{index}] Syncing #{sourcedir} to #{remotehost}:#{remotedir}"
+    # TODO: configurable rsync options
+    sync_cmd = "rsync -rvz --delete #{sourcedir} #{remotehost}:#{remotedir} &>/dev/null"
+    `#{sync_cmd}`
+  end
+end
+
+# Start a thread for each set of source and destination locations in the config file
+watch_threads=[]
+config = read_config(configfile)
+config.each_with_index do |watch, index|
+   watch_threads << Thread.new{start_watch(watch['sourcedir'], watch['remotedir'], watch['remotehost'], index)}
+end
+
+# Start all threads and wait for them to end (never, since they are infinite loops)
+watch_threads.each do |wt|
+  wt.join
+end
