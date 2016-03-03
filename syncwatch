@@ -24,7 +24,6 @@ end
 
 # Start a watch thread
 def start_watch(sourcedir, remotedir, remotehost, index)
-  puts "Starting new watch [#{index}] on #{sourcedir}"
   # fswatch options
   # -1 to make it exit after one iteration, this seems to be most reliable way to avoid it triggering multiple syncs per event
   # -r to watch recursively
@@ -44,6 +43,7 @@ end
 watch_threads=[]
 config = read_config(configfile)
 config.each_with_index do |watch, index|
+   puts "Starting new watch [#{index}] on #{watch['sourcedir']}"
    watch_threads << Thread.new{start_watch(watch['sourcedir'], watch['remotedir'], watch['remotehost'], index)}
 end
 
