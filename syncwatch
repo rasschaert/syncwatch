@@ -1,5 +1,6 @@
 #!/usr/bin/env ruby
 require 'json'
+require 'English'
 
 configfile = 'syncwatch.json'
 
@@ -46,8 +47,9 @@ def sync(sourcepath, remotepath, remotehost)
   #   --delete: delete files on destination that don't exist at the source
   rsync_options = '-r --delete'
   sync_cmd = "rsync #{rsync_options} #{sourcepath} " \
-    "#{remotehost}:#{remotepath} &>/dev/null"
-  `#{sync_cmd}`
+    "#{remotehost}:#{remotepath}"
+  `#{sync_cmd} &>/dev/null`
+  abort("Rsync command `#{sync_cmd}` failed.") if $CHILD_STATUS.to_i != 0
 end
 
 def sync_msg(sourcepath, remotepath, remotehost, watchid = nil)
@@ -61,7 +63,7 @@ def watch_msg(sourcepath, watchid)
 end
 
 def exit_watches
-  print "  \e[31m↻ [0] Configuration changed, reloading\e[0m\n"
+  print "  \e[35m↻ [0] Configuration changed, reloading\e[0m\n"
   Thread.list.each do |thread|
     thread.exit if thread != Thread.main && thread != Thread.current
   end
