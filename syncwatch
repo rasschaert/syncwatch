@@ -5,20 +5,20 @@ require 'json'
 configfile = 'syncwatch.json'
 # rsync options:
 #   -r: recurse
-#   --delete: delete files on destination that don't exist (anymore) at the source
+#   --delete: delete files on destination that don't exist at the source
 $rsync_options = '-r --delete'
 # fswatch options:
 #   -1: exit after one iteration
 #   -r: recurse
 #   -L: follow symlinks
-#   --event Updated Removed and Created: only report the events that signify change
+#   --event Updated/Removed/Created: only report the events that signify change
 $fswatch_options = '-1 -rL --event Updated --event Removed --event Created'
 
 # This script runs forever unless killed, so handle ^C nicely
-trap('INT') {
+trap('INT') do
   print "\nSyncwatch shutting down.\n"
   exit
-}
+end
 
 # Open and parse the JSON config file
 def read_config(configfile)
@@ -26,9 +26,10 @@ def read_config(configfile)
     file = File.read(configfile)
     parsed_config = JSON.parse(file)
   rescue
-    abort("ERROR: Error parsing configuration file #{configfile}. Does it exist and is it valid JSON?")
+    abort("ERROR: Error parsing configuration file #{configfile}. " \
+      'Does it exist and is it valid JSON?')
   end
-  return parsed_config
+  parsed_config
 end
 
 # Start a watch thread
@@ -37,7 +38,7 @@ def start_watch(sourcepath, remotepath, remotehost, watchid)
     watch_cmd = "fswatch #{$fswatch_options} \"#{sourcepath}\""
     # fswatch command stops the thread until it exits, when it detects a change
     `#{watch_cmd}`
-    # if there's no remotehost, there's no need for an rsync or a loop, just return here
+    # if there's no remotehost, there's no need for an rsync or loop, so return
     return if remotehost.nil?
     sync_msg(sourcepath, remotepath, remotehost, watchid)
     sync(sourcepath, remotepath, remotehost)
@@ -45,11 +46,12 @@ def start_watch(sourcepath, remotepath, remotehost, watchid)
 end
 
 def sync(sourcepath, remotepath, remotehost)
-  sync_cmd = "rsync #{$rsync_options} #{sourcepath} #{remotehost}:#{remotepath} &>/dev/null"
+  sync_cmd = "rsync #{$rsync_options} #{sourcepath} " \
+    "#{remotehost}:#{remotepath} &>/dev/null"
   `#{sync_cmd}`
 end
 
-def sync_msg(sourcepath, remotepath, remotehost, watchid=nil)
+def sync_msg(sourcepath, remotepath, remotehost, watchid = nil)
   prefix = "[#{watchid}] " unless watchid.nil?
   print "  ‣ #{prefix}Syncing #{sourcepath} → #{remotehost}:#{remotepath}\n"
 end
@@ -58,41 +60,48 @@ def watch_msg(sourcepath, watchid)
   puts "  Ⅱ [#{watchid}] Starting new watch on #{sourcepath}"
 end
 
-def exit_watches()
+def exit_watches
   print "  ↻ [0] Configuration changed, stopping all watches and reloading\n"
   Thread.list.each do |thread|
-    if (thread != Thread.main && thread != Thread.current)
-      thread.exit
-    end
+    thread.exit if thread != Thread.main && thread != Thread.current
   end
 end
 
-# An infinite loop allows this script to restart when the configuration file changes
+# An infinite loop lets this script reload when the configuration file changes
 loop do
   config = read_config(configfile)
 
   # Create a thread for each initial sync
-  initial_sync_threads=[]
+  initial_sync_threads = []
   puts '• Performing initial syncs'
   config.each_with_index do |watch, index|
-    sync_msg(watch['sourcepath'], watch['remotepath'], watch['remotehost'], index+1)
-    initial_sync_threads << Thread.new{sync(watch['sourcepath'], watch['remotepath'], watch['remotehost'])}
+    sync_msg(watch['sourcepath'], watch['remotepath'], watch['remotehost'],
+             index + 1)
+    initial_sync_threads << Thread.new do
+      sync(watch['sourcepath'], watch['remotepath'], watch['remotehost'])
+    end
   end
   # Start all initial sync threads and wait for them to end
-  initial_sync_threads.each {|t| t.join}
+  initial_sync_threads.each(&:join)
 
   # Watch threads
-  watch_threads=[]
+  watch_threads = []
   puts '• Watching for changes'
   # Create a thread for the configuration watch
   watch_msg(configfile, 0)
-  watch_threads << Thread.new{start_watch(configfile, nil, nil, 0); exit_watches()}
+  watch_threads << Thread.new do
+    start_watch(configfile, nil, nil, 0)
+    exit_watches
+  end
   # Create a thread for each user defined watch
   config.each_with_index do |watch, index|
-    watchid = index+1
+    watchid = index + 1
     watch_msg(watch['sourcepath'], watchid)
-    watch_threads << Thread.new{start_watch(watch['sourcepath'], watch['remotepath'], watch['remotehost'], watchid)}
+    watch_threads << Thread.new do
+      start_watch(watch['sourcepath'], watch['remotepath'],
+                  watch['remotehost'], watchid)
+    end
   end
   # Start all watch threads and wait for them to end
-  watch_threads.each {|t| t.join}
+  watch_threads.each(&:join)
 end
