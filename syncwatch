@@ -5,7 +5,7 @@ configfile = 'syncwatch.json'
 
 # This script runs forever unless killed, so handle ^C nicely
 trap('INT') do
-  print "\nSyncwatch shutting down.\n"
+  print "\n\e[33m•Syncwatch shutting down.\e[0m\n"
   exit
 end
 
@@ -52,15 +52,16 @@ end
 
 def sync_msg(sourcepath, remotepath, remotehost, watchid = nil)
   prefix = "[#{watchid}] " unless watchid.nil?
-  print "  ‣ #{prefix}Syncing #{sourcepath} → #{remotehost}:#{remotepath}\n"
+  print "  \e[32m‣ #{prefix}Syncing \e[0m#{sourcepath} \e[32m→\e[0m" \
+    " #{remotehost}:#{remotepath}\n"
 end
 
 def watch_msg(sourcepath, watchid)
-  puts "  Ⅱ [#{watchid}] Starting new watch on #{sourcepath}"
+  puts "  \e[34mⅡ [#{watchid}] Watching\e[0m #{sourcepath}"
 end
 
 def exit_watches
-  print "  ↻ [0] Configuration changed, stopping all watches and reloading\n"
+  print "  \e[31m↻ [0] Configuration changed, reloading\e[0m\n"
   Thread.list.each do |thread|
     thread.exit if thread != Thread.main && thread != Thread.current
   end
@@ -72,7 +73,7 @@ loop do
 
   # Create a thread for each initial sync
   initial_sync_threads = []
-  puts '• Performing initial syncs'
+  puts "\e[33m• Performing initial syncs\e[0m"
   config.each_with_index do |watch, index|
     sync_msg(watch['sourcepath'], watch['remotepath'], watch['remotehost'],
              index + 1)
@@ -85,7 +86,7 @@ loop do
 
   # Watch threads
   watch_threads = []
-  puts '• Watching for changes'
+  puts "\e[33m• Watching for changes\e[0m"
   # Create a thread for the configuration watch
   watch_msg(configfile, 0)
   watch_threads << Thread.new do
