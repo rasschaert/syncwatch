@@ -1,12 +1,12 @@
 [
   {
-    "sourcedir": "/home/kenny/development/foo/css/",
-    "remotedir": "/var/www/foo/css",
+    "sourcepath": "/home/kenny/development/foo/css/",
+    "remotepath": "/var/www/foo/css",
     "remotehost": "devbox-01"
   },
   {
-    "sourcedir": "/home/kenny/development/bar/webserver-config/",
-    "remotedir": "/etc/httpd/conf.d",
+    "sourcepath": "/home/kenny/development/bar/webserver-config/",
+    "remotepath": "/etc/httpd/conf.d",
     "remotehost": "devbox-02"
   },
 ]
