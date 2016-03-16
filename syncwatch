@@ -6,7 +6,7 @@ configfile = 'syncwatch.json'
 
 # This script runs forever unless killed, so handle ^C nicely
 trap('INT') do
-  print "\n\e[33m•Syncwatch shutting down.\e[0m\n"
+  print "\n\e[33m• Syncwatch shutting down.\e[0m\n"
   exit
 end
 
@@ -46,9 +46,13 @@ def sync(sourcepath, remotepath, remotehost)
   #   -r: recurse
   #   --delete: delete files on destination that don't exist at the source
   rsync_options = '-r --delete'
-  sync_cmd = "rsync #{rsync_options} #{sourcepath} " \
-    "#{remotehost}:#{remotepath}"
-  `#{sync_cmd} &>/dev/null`
+  sleep_time = 0
+  Thread.list.each_with_index do |thread, index|
+    thread == Thread.current && sleep_time = index * 0.1
+  end
+  sync_cmd = "sleep #{sleep_time};rsync #{rsync_options} #{sourcepath} " \
+    "#{remotehost}:#{remotepath} &>/dev/null"
+  `#{sync_cmd}`
   abort("Rsync command `#{sync_cmd}` failed.") if $CHILD_STATUS.to_i != 0
 end
 
