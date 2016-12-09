@@ -19,7 +19,23 @@ def read_config(configfile)
     abort("ERROR: Error parsing configuration file #{configfile}. " \
       'Does it exist and is it valid JSON?')
   end
-  parsed_config
+  final_config = []
+  parsed_config.each do |config_block|
+    if config_block['remotehost'].instance_of? Array
+      config_block['remotehost'].each do |single_remote_host|
+        # Clone the block containing the multiple remote hosts
+        config_block_for_single_remote_host = config_block.clone
+        # And replace them with a single remote host
+        config_block_for_single_remote_host['remotehost'] = single_remote_host
+        # Append this config block to the final config
+        final_config.push(config_block_for_single_remote_host)
+      end
+    else
+      # Directly append this config block to the final config
+      final_config << config_block
+    end
+  end
+  final_config
 end
 
 # Start a watch thread
