@@ -19,22 +19,33 @@ def read_config(configfile)
     abort("ERROR: Error parsing configuration file #{configfile}. " \
       'Does it exist and is it valid JSON?')
   end
+  parsed_config
+end
+
+# Configuration blocks allow for lists of remote hosts, those are
+# split into seperate configuration blocks here
+def split_multi_remotehost_config_blocks(config_block)
+  split_config = []
+  config_block['remotehost'].each do |single_remote_host|
+    # Clone the block containing the multiple remote hosts
+    config_block_for_single_remote_host = config_block.clone
+    # And replace them with a single remote host
+    config_block_for_single_remote_host['remotehost'] = single_remote_host
+    split_config.push(config_block_for_single_remote_host)
+  end
+  # Return split config blocks that each have a single remote host
+  split_config
+end
+
+# Do some processing on the config file
+def process_config(parsed_config)
   final_config = []
   parsed_config.each do |config_block|
-    if config_block.key?('enabled')
-      next unless config_block['enabled']
-    end
+    # Skip any blocks that are explicitely not enabled
+    next if config_block.key?('enabled') && !config_block['enabled']
     if config_block['remotehost'].instance_of? Array
-      config_block['remotehost'].each do |single_remote_host|
-        # Clone the block containing the multiple remote hosts
-        config_block_for_single_remote_host = config_block.clone
-        # And replace them with a single remote host
-        config_block_for_single_remote_host['remotehost'] = single_remote_host
-        # Append this config block to the final config
-        final_config.push(config_block_for_single_remote_host)
-      end
+      final_config += split_multi_remotehost_config_blocks(config_block)
     else
-      # Directly append this config block to the final config
       final_config << config_block
     end
   end
@@ -88,10 +99,19 @@ def exit_watches
   end
 end
 
+def create_watch_threads(config)
+  config.each_with_index do |watch, index|
+    watch_msg(watch['sourcepath'], index + 1)
+    watch_threads << Thread.new do
+      start_watch(watch['sourcepath'], watch['remotepath'],
+                  watch['remotehost'], watch['rsync_options'], index + 1)
+    end
+  end
+end
+
 # An infinite loop lets this script reload when the configuration file changes
 loop do
-  config = read_config(configfile)
-
+  config = process_config(read_config(configfile))
   # Create a thread for each initial sync
   initial_sync_threads = []
   puts "\e[33m• Performing initial syncs\e[0m"
@@ -99,12 +119,12 @@ loop do
     sync_msg(watch['sourcepath'], watch['remotepath'], watch['remotehost'],
              index + 1)
     initial_sync_threads << Thread.new do
-      sync(watch['sourcepath'], watch['remotepath'], watch['remotehost'], watch['rsync_options'])
+      sync(watch['sourcepath'], watch['remotepath'], watch['remotehost'],
+           watch['rsync_options'])
     end
   end
   # Start all initial sync threads and wait for them to end
   initial_sync_threads.each(&:join)
-
   # Watch threads
   watch_threads = []
   puts "\e[33m• Watching for changes\e[0m"
@@ -115,15 +135,8 @@ loop do
     exit_watches
   end
   # Create a thread for each user defined watch
-  config.each_with_index do |watch, index|
-    watchid = index + 1
-    watch_msg(watch['sourcepath'], watchid)
-    watch_threads << Thread.new do
-      start_watch(watch['sourcepath'], watch['remotepath'],
-                  watch['remotehost'], watch['rsync_options'],
-                  watchid)
-    end
-  end
+  create_watch_threads(config)
+
   # Start all watch threads and wait for them to end
   watch_threads.each(&:join)
 end
