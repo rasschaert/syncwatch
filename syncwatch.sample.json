@@ -2,11 +2,12 @@
   {
     "sourcepath": "/home/kenny/development/foo/css/",
     "remotepath": "/var/www/foo/css",
-    "remotehost": "devbox-01"
+    "remotehost": "devbox-01",
+    "rsync_options": "-r --delete --exclude '.git'"
   },
   {
     "sourcepath": "/home/kenny/development/bar/webserver-config/",
     "remotepath": "/etc/httpd/conf.d",
     "remotehost": [ "devbox-02", "devbox-03" ]
-  },
+  }
 ]
