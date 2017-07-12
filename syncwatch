@@ -99,7 +99,7 @@ def exit_watches
   end
 end
 
-def create_watch_threads(config)
+def create_watch_threads(watch_threads, config)
   config.each_with_index do |watch, index|
     watch_msg(watch['sourcepath'], index + 1)
     watch_threads << Thread.new do
@@ -107,6 +107,7 @@ def create_watch_threads(config)
                   watch['remotehost'], watch['rsync_options'], index + 1)
     end
   end
+  watch_threads
 end
 
 # An infinite loop lets this script reload when the configuration file changes
@@ -135,7 +136,7 @@ loop do
     exit_watches
   end
   # Create a thread for each user defined watch
-  create_watch_threads(config)
+  watch_threads = create_watch_threads(watch_threads, config)
 
   # Start all watch threads and wait for them to end
   watch_threads.each(&:join)
