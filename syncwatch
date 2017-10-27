@@ -2,7 +2,7 @@
 require 'json'
 require 'English'
 
-configfile = 'syncwatch.json'
+config_file = 'syncwatch.json'
 
 # This script runs forever unless killed, so handle ^C nicely
 trap('INT') do
@@ -11,12 +11,12 @@ trap('INT') do
 end
 
 # Open and parse the JSON config file
-def read_config(configfile)
+def read_config(config_file)
   begin
-    file = File.read(configfile)
+    file = File.read(config_file)
     parsed_config = JSON.parse(file)
   rescue
-    abort("ERROR: Error parsing configuration file #{configfile}. " \
+    abort("ERROR: Error parsing configuration file #{config_file}. " \
       'Does it exist and is it valid JSON?')
   end
   parsed_config
@@ -26,11 +26,11 @@ end
 # split into seperate configuration blocks here
 def split_multi_remotehost_config_blocks(config_block)
   split_config = []
-  config_block['remotehost'].each do |single_remote_host|
+  config_block['remoteHost'].each do |single_remote_host|
     # Clone the block containing the multiple remote hosts
     config_block_for_single_remote_host = config_block.clone
     # And replace them with a single remote host
-    config_block_for_single_remote_host['remotehost'] = single_remote_host
+    config_block_for_single_remote_host['remoteHost'] = single_remote_host
     split_config.push(config_block_for_single_remote_host)
   end
   # Return split config blocks that each have a single remote host
@@ -43,7 +43,7 @@ def process_config(parsed_config)
   parsed_config.each do |config_block|
     # Skip any blocks that are explicitely not enabled
     next if config_block.key?('enabled') && !config_block['enabled']
-    if config_block['remotehost'].instance_of? Array
+    if config_block['remoteHost'].instance_of? Array
       final_config += split_multi_remotehost_config_blocks(config_block)
     else
       final_config << config_block
@@ -53,7 +53,8 @@ def process_config(parsed_config)
 end
 
 # Start a watch thread
-def start_watch(sourcepath, remotepath, remotehost, rsync_options, watchid)
+def start_watch(source_path, remote_path, remote_host, rsync_options,
+                watch_id, post_sync_command = nil)
   loop do
     # fswatch options:
     #   -1: exit after one iteration
@@ -61,35 +62,37 @@ def start_watch(sourcepath, remotepath, remotehost, rsync_options, watchid)
     #   -L: follow symlinks
     #   --event Updated/Removed/Created: only shows events that signify change
     fswatch_options = '-1 -rL --event Updated --event Removed --event Created'
-    watch_cmd = "fswatch #{fswatch_options} \"#{sourcepath}\""
+    watch_cmd = "fswatch #{fswatch_options} \"#{source_path}\""
     # fswatch command stops the thread until it exits, when it detects a change
     `#{watch_cmd}`
-    # if there's no remotehost, there's no need for an rsync or loop, so return
-    return if remotehost.nil?
-    sync_msg(sourcepath, remotepath, remotehost, watchid)
-    sync(sourcepath, remotepath, remotehost, rsync_options)
+    # if there's no remote_host, there's no need for an rsync or loop, so return
+    return if remote_host.nil?
+    sync_msg(source_path, remote_path, remote_host, watch_id)
+    sync(source_path, remote_path, remote_host, rsync_options,
+         post_sync_command)
   end
 end
 
-def sync(sourcepath, remotepath, remotehost, rsync_options)
+def sync(source_path, remote_path, remote_host, rsync_options, post_sync_command=nil)
   sleep_time = 0
   Thread.list.each_with_index do |thread, index|
     thread == Thread.current && sleep_time = index * 0.1
   end
-  sync_cmd = "sleep #{sleep_time};rsync #{rsync_options} #{sourcepath} " \
-    "#{remotehost}:#{remotepath} &>/dev/null"
+  sync_cmd = "sleep #{sleep_time};rsync #{rsync_options} #{source_path} " \
+    "#{remote_host}:#{remote_path} &>/dev/null"
   `#{sync_cmd}`
   abort("Rsync command `#{sync_cmd}` failed.") if $CHILD_STATUS.to_i != 0
+  `#{post_sync_command}` unless post_sync_command.nil?
 end
 
-def sync_msg(sourcepath, remotepath, remotehost, watchid = nil)
-  prefix = "[#{watchid}] " unless watchid.nil?
-  print "  \e[32m‣ #{prefix}Syncing \e[0m#{sourcepath} \e[32m→\e[0m" \
-    " #{remotehost}:#{remotepath}\n"
+def sync_msg(source_path, remote_path, remote_host, watch_id = nil)
+  prefix = "[#{watch_id}] " unless watch_id.nil?
+  print "  \e[32m‣ #{prefix}Syncing \e[0m#{source_path} \e[32m→\e[0m" \
+    " #{remote_host}:#{remote_path}\n"
 end
 
-def watch_msg(sourcepath, watchid)
-  puts "  \e[34m‖ [#{watchid}] Watching\e[0m #{sourcepath}"
+def watch_msg(source_path, watch_id)
+  puts "  \e[34m‖ [#{watch_id}] Watching\e[0m #{source_path}"
 end
 
 def exit_watches
@@ -100,11 +103,12 @@ def exit_watches
 end
 
 def create_watch_threads(watch_threads, config)
-  config.each_with_index do |watch, index|
-    watch_msg(watch['sourcepath'], index + 1)
+  config.each_with_index do |cfg_entry, index|
+    watch_msg(cfg_entry['sourcePath'], index + 1)
     watch_threads << Thread.new do
-      start_watch(watch['sourcepath'], watch['remotepath'],
-                  watch['remotehost'], watch['rsync_options'], index + 1)
+      start_watch(cfg_entry['sourcePath'], cfg_entry['remotePath'],
+                  cfg_entry['remoteHost'], cfg_entry['rsyncOptions'],
+                  index + 1, cfg_entry['postSyncCommand'])
     end
   end
   watch_threads
@@ -112,16 +116,17 @@ end
 
 # An infinite loop lets this script reload when the configuration file changes
 loop do
-  config = process_config(read_config(configfile))
+  config = process_config(read_config(config_file))
   # Create a thread for each initial sync
   initial_sync_threads = []
   puts "\e[33m• Performing initial syncs\e[0m"
-  config.each_with_index do |watch, index|
-    sync_msg(watch['sourcepath'], watch['remotepath'], watch['remotehost'],
-             index + 1)
+  config.each_with_index do |cfg_entry, index|
+    sync_msg(cfg_entry['sourcePath'], cfg_entry['remotePath'],
+             cfg_entry['remoteHost'], index + 1)
     initial_sync_threads << Thread.new do
-      sync(watch['sourcepath'], watch['remotepath'], watch['remotehost'],
-           watch['rsync_options'])
+      sync(cfg_entry['sourcePath'], cfg_entry['remotePath'],
+           cfg_entry['remoteHost'], cfg_entry['rsyncOptions'],
+           cfg_entry['postSyncCommand'])
     end
   end
   # Start all initial sync threads and wait for them to end
@@ -130,9 +135,9 @@ loop do
   watch_threads = []
   puts "\e[33m• Watching for changes\e[0m"
   # Create a thread for the configuration watch
-  watch_msg(configfile, 0)
+  watch_msg(config_file, 0)
   watch_threads << Thread.new do
-    start_watch(configfile, nil, nil, nil, 0)
+    start_watch(config_file, nil, nil, nil, 0)
     exit_watches
   end
   # Create a thread for each user defined watch

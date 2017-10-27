@@ -17,11 +17,11 @@ Just make the script executable and put it a folder in your $PATH.
 
 ## Configuration
 Add one or more sets of the following to the syncwatch.json configuration file:
-- sourcepath
-- remotepath
-- remotehost
+- sourcePath
+- remotePath
+- remoteHost
 
-See syncwatch.sample.json for an example.
+Check out syncwatch.sample.json for an example.
 
 Don't forget to add a trailing slash to the source dir when necessary! Read rsync's man page if you don't know what I mean.
 

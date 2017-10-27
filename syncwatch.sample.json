@@ -1,13 +1,14 @@
 [
   {
-    "sourcepath": "/home/kenny/development/foo/css/",
-    "remotepath": "/var/www/foo/css",
-    "remotehost": "devbox-01",
-    "rsync_options": "-r --delete --exclude '.git'"
+    "sourcePath":      "/home/kenny/development/foo/css/",
+    "remotePath":      "/var/www/foo/css",
+    "remoteHost":      "devbox-01",
+    "rsyncOptions":    "-r --delete --exclude '.git'"
   },
   {
-    "sourcepath": "/home/kenny/development/bar/webserver-config/",
-    "remotepath": "/etc/httpd/conf.d",
-    "remotehost": [ "devbox-02", "devbox-03" ]
+    "sourcePath":      "/home/kenny/development/bar/webserver-config/",
+    "remotePath":      "/etc/httpd/conf.d",
+    "remoteHost":      [ "devbox-02", "devbox-03" ],
+    "postSyncCommand": "ssh devbox-01 'service httpd restart'"
   }
 ]
